@@ -1,4 +1,4 @@
 #!/bin/bash
 
 cd /robbiew/artvu
-./artvu
+./artvu /home/robbiew/test/art

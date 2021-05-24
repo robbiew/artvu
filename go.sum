@@ -1,0 +1,6 @@
+github.com/snugfox/ansi-escapes v0.2.0 h1:vKrafCe+sRkcVBUP+0AVmpH2vHsnDmSwSp/7p9m7Aqc=
+github.com/snugfox/ansi-escapes v0.2.0/go.mod h1:7GY2wPrDOaZyZ/OlSWalu7T+RKdkSrPfQHDr3xl8yGk=
+github.com/tlorens/go-ibgetkey v0.0.0-20140916040717-87014579c938 h1:3xP7FB0To7IemhDGBf9wiBudR7UjNvDdERXFtFwFEZw=
+github.com/tlorens/go-ibgetkey v0.0.0-20140916040717-87014579c938/go.mod h1:nfnixhP4BXB647wzbBbHS9G8DF/3B6pNeTpwXPMQrlw=
+golang.org/x/sys v0.0.0-20190124100055-b90733256f2e h1:3GIlrlVLfkoipSReOMNAgApI0ajnalyLa/EZHHca/XI=
+golang.org/x/sys v0.0.0-20190124100055-b90733256f2e/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
