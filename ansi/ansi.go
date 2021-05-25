@@ -24,6 +24,7 @@ func Theme(name string, size int) {
 	trimmed := TrimStringFromSauce(text)
 	fmt.Fprintf(os.Stdout, "\033[0;0f")
 	fmt.Fprintf(os.Stdout, trimmed)
+	fmt.Fprintf(os.Stdout, "\u001b[0m")
 
 	return
 }
