@@ -9,6 +9,7 @@ import (
 
 	"github.com/robbiew/artvu/ansi"
 	term "github.com/robbiew/artvu/term"
+	escapes "github.com/snugfox/ansi-escapes"
 	keyboard "github.com/tlorens/go-ibgetkey"
 )
 
@@ -78,6 +79,7 @@ func truncateText(s string, max int) string {
 }
 
 func listFiles() {
+	ansi.Theme("header", theme)
 
 	// create a Slice containing paths from supplied Root
 	getFiles, err := getAllFiles(root, "*.ans")
@@ -99,13 +101,18 @@ func listFiles() {
 			Name: name,
 		}
 
-		for i > visibleIdx && i < visibleIdx+(h-3) {
-			fmt.Println(i, f.FileInfo())
-			break
+		for i >= visibleIdx && i < visibleIdx+(h-4) {
+			if i == currentFile {
+				fmt.Fprintf(os.Stdout, escapes.EraseLine)
+				fmt.Println("CurrentFile")
+				break
+			} else {
+				fmt.Fprintf(os.Stdout, escapes.EraseLine)
+				fmt.Println(i, f.FileInfo())
+				break
+			}
 		}
-
 	}
-
 }
 
 func init() {
@@ -125,14 +132,13 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stdout, "\033[?25l") // hide the cursor
+	fmt.Fprintf(os.Stdout, "\033[2J")   // clear the screen
 
-	fmt.Fprintf(os.Stdout, "\033[2J") // clear the screen
+	// Try and detect the user's term size
 	h, w = term.GetTermSize()
-
 	if w < 132 {
 		theme = 80
 	}
-
 	if w >= 132 {
 		theme = 132
 	} else {
@@ -142,9 +148,7 @@ func main() {
 	fmt.Fprintf(os.Stdout, "\033[2J")   // clear the screen again
 	fmt.Fprintf(os.Stdout, "\033[0;0f") // set cursor to 0,0 position
 
-	ansi.Theme("header", theme)
-	fmt.Println("\r")
-
+	// call function for
 	listFiles()
 
 	// handle single key press
@@ -157,30 +161,22 @@ func main() {
 	for ch != 113 {
 		ch = keyboard.ReadKey()
 
-		if visibleIdx >= 0 && currentFile > 0 {
+		if visibleIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
 			if ch == keyboard.KEY_UP {
 				currentFile--
-				if currentFile <= visibleIdx {
+				if currentFile < visibleIdx {
 					visibleIdx--
 				}
-				fmt.Fprintf(os.Stdout, "\033[4;0f")
-				fmt.Fprintf(os.Stdout, "\033[2J")
 				listFiles()
-				fmt.Fprintf(os.Stdout, "\033[0;0f")
-				fmt.Println(currentFile)
 			}
 		}
-		if visibleIdx < fileCount-(h-3) && currentFile < fileCount {
+		if visibleIdx <= fileCount-1 && currentFile <= fileCount-2 {
 			if ch == keyboard.KEY_DN {
 				currentFile++
-				if currentFile > visibleIdx+(h-4) {
+				if currentFile > visibleIdx+(h-5) {
 					visibleIdx++
 				}
-				fmt.Fprintf(os.Stdout, "\033[4;0f")
-				fmt.Fprintf(os.Stdout, "\033[2J")
 				listFiles()
-				fmt.Fprintf(os.Stdout, "\033[0;0f")
-				fmt.Println(currentFile)
 			}
 		}
 	}

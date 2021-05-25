@@ -22,6 +22,7 @@ func Theme(name string, size int) {
 	// Convert []byte to string and print to screen
 	text := string(content)
 	trimmed := TrimStringFromSauce(text)
+	fmt.Fprintf(os.Stdout, "\033[0;0f")
 	fmt.Fprintf(os.Stdout, trimmed)
 
 	return
