@@ -87,20 +87,26 @@ func createDirSlice(root string) ([]string, error) {
 
 func showDirs(dirList []string) {
 
-	for i, v := range dirList {
+	if side == 0 {
 
-		for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
-			if i == currentDir {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(bgCyan + brightWhite + v + reset)
+		for i, v := range dirList {
 
-				break
-			} else {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(v)
-				break
+			for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
+				if i == currentDir {
+					fmt.Fprintf(os.Stdout, escapes.EraseLine)
+					fmt.Println(bgCyan + "                              " + reset)
+					fmt.Println("\033[1A" + bgCyan + brightWhite + truncateText(v, 30) + reset)
+
+					break
+				} else {
+					fmt.Fprintf(os.Stdout, escapes.EraseLine)
+					fmt.Println(truncateText(v, 30))
+					break
+				}
 			}
 		}
+	} else {
+		fmt.Println("files list")
 	}
 }
 
@@ -111,7 +117,8 @@ func showFiles(dirList []string) {
 		for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
 			if i == currentDir {
 				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(bgCyan + brightWhite + v + reset)
+				fmt.Fprintf(os.Stdout, bgCyan+brightWhite+"                                             "+reset)
+				fmt.Println("\033[0;0f" + bgCyan + brightWhite + v + reset)
 				break
 			} else {
 				fmt.Fprintf(os.Stdout, escapes.EraseLine)
@@ -194,9 +201,13 @@ func main() {
 
 		if ch == keyboard.KEY_LF {
 			side = 0
+			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+			showDirs(dirs)
 		}
 		if ch == keyboard.KEY_RT {
 			side = 1
+			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+			showDirs(dirs)
 		}
 
 		if ch == keyboard.KEY_UP {
