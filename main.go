@@ -87,26 +87,23 @@ func createDirSlice(root string) ([]string, error) {
 
 func showDirs(dirList []string) {
 
-	if side == 0 {
+	for i, v := range dirList {
 
-		for i, v := range dirList {
+		for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
+			if i == currentDir {
+				fmt.Fprintf(os.Stdout, escapes.EraseLine)
+				fmt.Println(bgCyan + "                              " + reset)
+				fmt.Println("\033[1A" + bgCyan + brightWhite + truncateText(v, 30) + reset)
 
-			for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
-				if i == currentDir {
-					fmt.Fprintf(os.Stdout, escapes.EraseLine)
-					fmt.Println(bgCyan + "                              " + reset)
-					fmt.Println("\033[1A" + bgCyan + brightWhite + truncateText(v, 30) + reset)
+				fmt.Println("\033[1A" + "\x1b[32C" + escapes.CursorPosY(35) + bgCyan + "                              " + reset)
 
-					break
-				} else {
-					fmt.Fprintf(os.Stdout, escapes.EraseLine)
-					fmt.Println(truncateText(v, 30))
-					break
-				}
+				break
+			} else {
+				fmt.Fprintf(os.Stdout, escapes.EraseLine)
+				fmt.Println(truncateText(v, 30))
+				break
 			}
 		}
-	} else {
-		fmt.Println("files list")
 	}
 }
 
