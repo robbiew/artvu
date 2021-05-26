@@ -18,16 +18,18 @@ var (
 	root  string // art files dir
 	theme int    // 80 or 132
 	dirs  []string
-	files []string
-	side  int // active list -- 0=dirs, 1=files
+	// files []string
+	side int // active list -- 0=dirs, 1=files
 
-	visibleIdx  int // last visible file index on screen
-	fileCount   int // number of files
-	currentFile int // index of highllighted file
+	visibleFileIdx int // last visible file index on screen
+	fileCount      int // number of files
+	currentFile    int // index of highllighted file
 
 	visibleDirIdx int // last visible file index on screen
 	dirCount      int // number of files
 	currentDir    int // index of highllighted file
+
+	dirName string // name of current dir
 
 	reset = "\u001b[0m"
 
@@ -62,6 +64,8 @@ var (
 
 func createFilesSlice(root string, dir string) ([]string, error) {
 
+	var files []string
+
 	fileInfo, err := ioutil.ReadDir(root + "/" + dir)
 	if err != nil {
 		return files, err
@@ -85,44 +89,63 @@ func createDirSlice(root string) ([]string, error) {
 	return dirs, nil
 }
 
-func showDirs(dirList []string) {
+// Contains tells whether a contains x.
+func contains(a []string, x string) int {
+	var n int
+	for _, n := range a {
+		if x == n {
+			return len(n)
+		}
+	}
+	return n
+}
 
-	for i, v := range dirList {
+func indexOf(data []string, element int) string {
+	for k, v := range data {
+		if element == k {
+			return v
+		}
+	}
+	return "not found" //not found.
+}
 
-		for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
-			if i == currentDir {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(bgCyan + "                              " + reset)
-				fmt.Println("\033[1A" + bgCyan + brightWhite + truncateText(v, 30) + reset)
+func showFiles(files []string) {
 
-				fmt.Println("\033[1A" + "\x1b[32C" + escapes.CursorPosY(35) + bgCyan + "                              " + reset)
+	fmt.Fprintf(os.Stdout, "\033[6;32H")
 
+	for i, v := range files {
+		for i >= visibleFileIdx && i < visibleFileIdx+(h-6) {
+			if i == currentFile {
+				// active dir
+				loc := "\033[32G"
+				fmt.Println(loc + bgCyan + brightWhite + truncateText(v, 45) + reset)
 				break
 			} else {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(truncateText(v, 30))
+				loc := "\033[32G"
+				fmt.Println(loc + fmt.Sprint(i) + " " + truncateText(v, 45) + reset)
+
 				break
 			}
+
 		}
 	}
 }
 
-func showFiles(dirList []string) {
+func showDirs(dirList []string) {
 
 	for i, v := range dirList {
-
 		for i >= visibleDirIdx && i < visibleDirIdx+(h-6) {
 			if i == currentDir {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Fprintf(os.Stdout, bgCyan+brightWhite+"                                             "+reset)
-				fmt.Println("\033[0;0f" + bgCyan + brightWhite + v + reset)
+				// active dir
+
+				fmt.Println(bgCyan + brightWhite + truncateText(v, 30) + reset)
 				break
 			} else {
-				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-				fmt.Println(v)
+				fmt.Println(truncateText(v, 30) + reset)
 				break
 			}
 		}
+
 	}
 }
 
@@ -140,12 +163,11 @@ func truncateText(s string, max int) string {
 }
 
 func init() {
-	visibleIdx = 0
+	visibleFileIdx = 0
 	currentFile = 0
 	visibleDirIdx = 0
 	currentDir = 0
 	dirs = nil
-	files = nil
 	side = 0
 }
 
@@ -198,13 +220,26 @@ func main() {
 
 		if ch == keyboard.KEY_LF {
 			side = 0
+			fmt.Fprintf(os.Stdout, "\033[2J")
+			ansi.Theme("header", theme)
+
 			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 			showDirs(dirs)
+
 		}
 		if ch == keyboard.KEY_RT {
 			side = 1
+
+			currentDirName := indexOf(dirs, currentDir)
+			filesSlice, err := createFilesSlice(root, currentDirName)
+			if err != nil {
+				log.Fatal(err)
+			}
 			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 			showDirs(dirs)
+			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+			showFiles(filesSlice)
+
 		}
 
 		if ch == keyboard.KEY_UP {
@@ -214,8 +249,18 @@ func main() {
 					if currentDir < visibleDirIdx {
 						visibleDirIdx--
 					}
+
 					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 					showDirs(dirs)
+				}
+			} else {
+				if visibleFileIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
+					currentFile--
+					if currentFile < visibleFileIdx {
+						visibleFileIdx--
+					}
+					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+
 				}
 			}
 		}
@@ -229,124 +274,16 @@ func main() {
 					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 					showDirs(dirs)
 				}
+			} else {
+				if visibleFileIdx <= fileCount-1 && currentFile <= fileCount-2 {
+					currentFile++
+					if currentFile > visibleFileIdx+(h-7) {
+						visibleFileIdx++
+					}
+					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+
+				}
 			}
 		}
 	}
-
-	// handle single key press
-	// var ch int
-
-	// for ch == 113 {
-	// 	fmt.Fprintf(os.Stdout, "\033[?25h") // re-enable the cursor
-	// 	os.Exit(0)
-	// }
-	// for ch != 113 {
-	// 	ch = keyboard.ReadKey()
-
-	// 	if visibleIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
-	// 		if ch == keyboard.KEY_UP {
-	// 			currentFile--
-	// 			if currentFile < visibleIdx {
-	// 				visibleIdx--
-	// 			}
-	// 			listDirs()
-	// 		}
-	// 	}
-	// 	if visibleIdx <= fileCount-1 && currentFile <= fileCount-2 {
-	// 		if ch == keyboard.KEY_DN {
-	// 			currentFile++
-	// 			if currentFile > visibleIdx+(h-7) {
-	// 				visibleIdx++
-	// 			}
-	// 			listDirs()
-	// 		}
-	// 	}
-	// }
 }
-
-// func listFiles() {
-// 	ansi.Theme("header", theme)
-
-// 	// create a Slice containing paths from supplied Root
-// 	getFiles, err := getAllFiles(root, "*.ans")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	// iterate over each to split into 3 parts
-// 	for i, v := range getFiles {
-
-// 		dir, name := path.Split(v)
-// 		base := filepath.Base(dir)
-
-// 		f := FileData{
-// 			Path: v,
-// 			Base: base,
-// 			Dir:  dir,
-// 			Name: name,
-// 		}
-
-// 		for i >= visibleIdx && i < visibleIdx+(h-6) {
-// 			if i == currentFile {
-// 				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-// 				fmt.Println(bgCyan + brightWhite + f.FileInfo() + reset)
-// 				break
-// 			} else {
-// 				fmt.Fprintf(os.Stdout, escapes.EraseLine)
-// 				fmt.Println(f.FileInfo())
-// 				break
-// 			}
-// 		}
-// 	}
-// }
-// type FileData struct {
-// 	Path string
-// 	Dir  string
-// 	Base string
-// 	Name string
-// }
-
-// func (f FileData) FileInfo() string {
-// 	// fmt.Fprintf(os.Stdout, f.Path)
-// 	// fmt.Fprintf(os.Stdout, f.Dir)
-
-// 	base := truncateText(f.Base, 35)
-// 	name := truncateText(f.Name, 35)
-
-// 	return escapes.CursorPosX(1) + base + escapes.CursorPosX(40) + name
-
-// }
-
-// func (f FileData) DirInfo() string {
-// 	// fmt.Fprintf(os.Stdout, f.Path)
-// 	// fmt.Fprintf(os.Stdout, f.Dir)
-
-// 	base := truncateText(f.Base, 35)
-
-// 	return escapes.CursorPosX(1) + base
-
-// }
-
-// func getAllFiles(root, pattern string) ([]string, error) {
-
-// 	var matches []string
-// 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if info.IsDir() {
-// 			return nil
-// 		}
-// 		if matched, err := filepath.Match(pattern, filepath.Base(path)); err != nil {
-// 			return err
-// 		} else if matched {
-// 			matches = append(matches, path)
-// 		}
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	fileCount = len(matches)
-// 	return matches, nil
-// }
