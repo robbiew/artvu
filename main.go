@@ -122,7 +122,7 @@ func showFiles(files []string) {
 				break
 			} else {
 				loc := "\033[32G"
-				fmt.Println(loc + fmt.Sprint(i) + " " + truncateText(v, 45) + reset)
+				fmt.Println(loc + truncateText(v, 45) + reset)
 
 				break
 			}
@@ -222,22 +222,18 @@ func main() {
 			side = 0
 			fmt.Fprintf(os.Stdout, "\033[2J")
 			ansi.Theme("header", theme)
-
-			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 			showDirs(dirs)
-
 		}
 		if ch == keyboard.KEY_RT {
 			side = 1
-
+			currentFile = 0
+			visibleFileIdx = 0
 			currentDirName := indexOf(dirs, currentDir)
 			filesSlice, err := createFilesSlice(root, currentDirName)
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
-			showDirs(dirs)
-			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+
 			showFiles(filesSlice)
 
 		}
@@ -253,17 +249,29 @@ func main() {
 					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 					showDirs(dirs)
 				}
-			} else {
+			}
+			if side == 1 {
 				if visibleFileIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
 					currentFile--
 					if currentFile < visibleFileIdx {
 						visibleFileIdx--
 					}
+
+					currentDirName := indexOf(dirs, currentDir)
+					filesSlice, err := createFilesSlice(root, currentDirName)
+					if err != nil {
+						log.Fatal(err)
+					}
+
 					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+					showDirs(dirs)
+					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+					showFiles(filesSlice)
 
 				}
 			}
 		}
+
 		if ch == keyboard.KEY_DN {
 			if side == 0 {
 				if visibleDirIdx <= dirCount-1 && currentDir <= dirCount-2 {
@@ -274,13 +282,24 @@ func main() {
 					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
 					showDirs(dirs)
 				}
-			} else {
+			}
+
+			if side == 1 {
+				currentDirName := indexOf(dirs, currentDir)
+
+				filesSlice, err := createFilesSlice(root, currentDirName)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fileCount = len(filesSlice)
+
 				if visibleFileIdx <= fileCount-1 && currentFile <= fileCount-2 {
 					currentFile++
 					if currentFile > visibleFileIdx+(h-7) {
 						visibleFileIdx++
 					}
-					fmt.Fprintf(os.Stdout, escapes.CursorPos(0, 5))
+
+					showFiles(filesSlice)
 
 				}
 			}
