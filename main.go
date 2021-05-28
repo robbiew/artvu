@@ -36,8 +36,9 @@ var (
 	visibleFileIdx int // last visible file index on screen
 	visibleDirIdx  int // last visible file index on screen
 
-	dirCount  int // number of files
-	fileCount int // number of files
+	dirs      []string // slice of all dirs
+	dirCount  int      // number of files
+	fileCount int      // number of files
 
 	currentFile     int // index of highllighted file
 	currentDir      int // index of highllighted file
@@ -114,6 +115,20 @@ func TrimStringFromSauce(s string) string {
 	return s
 }
 
+func placeArt(path string) {
+
+	file, err := ioutil.ReadFile(path)
+	if err != nil {
+		//handle error
+		return
+	}
+
+	var b bytes.Buffer
+	b.Write([]byte(file))
+	b.WriteTo(os.Stdout)
+
+}
+
 // showArt draws the art
 func ShowArt(path string, sizeX int, sizeY int, delay int) {
 
@@ -128,9 +143,8 @@ func ShowArt(path string, sizeX int, sizeY int, delay int) {
 	defer file.Close()
 	s := bufio.NewScanner(file)
 
-	defer file.Close()
 	fmt.Fprintf(os.Stdout, escapes.EraseScreen)
-	// fmt.Println(escapes.CursorPos(0, 0))
+	fmt.Println(escapes.CursorPos(0, 0))
 
 	for s.Scan() {
 		read_line := s.Text()
@@ -149,6 +163,42 @@ func ShowArt(path string, sizeX int, sizeY int, delay int) {
 		}
 	}
 
+	fmt.Println("\r")
+
+	loc := "\033[" + fmt.Sprint(h) + ";" + fmt.Sprint(0) + "H"
+	fmt.Fprintf(os.Stdout, loc)
+
+	placeArt("theme/artfooter." + fmt.Sprint(theme) + ".ans")
+
+	char, key, err := keyboard.GetKey()
+	if err != nil {
+		panic(err)
+	}
+
+	if string(char) == "q" || string(char) == "Q" || key == keyboard.KeyEsc {
+
+		// log.Printf("You pressed: rune %q, key %X\r\n", char, key)
+		side = 1
+		currentDirName := indexOf(dirs, currentDir)
+		filesSlice, err := createFilesSlice(root, currentDirName)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Fprintf(os.Stdout, "\033[2J") //clear screen
+		themeArt("header", theme)         // draw header
+
+		showFiles(filesSlice)
+		showDirs(dirs)
+		// showWidth(filesSlice)
+
+		bottom := "\033[" + fmt.Sprint(h) + ";0H"
+		fmt.Fprintf(os.Stdout, bottom)
+		themeArt("footer", theme)
+		side = 1
+	} else {
+
+	}
 }
 
 func checkSauce(input string) bool {
@@ -182,19 +232,19 @@ func createFilesSlice(root string, dir string) ([]string, error) {
 	return files, err
 }
 
-func createDirSlice(root string) ([]string, error) {
+func createDirSlice(root string) []string {
 
 	file, err := os.Open(root)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
 	defer file.Close()
-	names, err := file.Readdirnames(0)
+	dirs, err := file.Readdirnames(0)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
-	dirCount = len(names)
-	return names, err
+	dirCount = len(dirs)
+	return dirs
 }
 
 func indexOf(data []string, element int) string {
@@ -338,7 +388,6 @@ func showDirs(dirList []string) {
 				break
 			}
 		}
-
 	}
 	scrollArrows(0)
 }
@@ -374,16 +423,6 @@ func truncateText(s string, max int) string {
 	return s
 }
 
-func init() {
-	visibleFileIdx = 0
-	currentFile = 0
-	visibleDirIdx = 0
-	currentDir = 0
-	side = 0
-	headerH = 4
-	canQuit = false
-}
-
 func showDiz(root string, dir string) {
 
 	file := root + "/" + dir + "/file_id.diz"
@@ -410,9 +449,7 @@ func showDiz(root string, dir string) {
 			rowCount++
 			break
 		}
-
 	}
-
 }
 
 func isMultipleOf(thumbHeight float64, rowNum int) bool {
@@ -424,6 +461,83 @@ func isMultipleOf(thumbHeight float64, rowNum int) bool {
 		return false
 	}
 
+}
+
+func quitConf() {
+
+	path := "theme/quit." + fmt.Sprint(theme) + ".ans"
+	file := path
+	content, err := ioutil.ReadFile(file)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Fprintf(os.Stdout, escapes.ClearScreen)
+	fmt.Fprintf(os.Stdout, escapes.CursorHide)
+
+	rowCount := h/2 - 5
+
+	s := bufio.NewScanner(strings.NewReader(string(content)))
+
+	// defer file.Close()
+	for s.Scan() {
+		read_line := s.Text()
+		// trim the text if it's after a SAUCE RECORD
+		trimmed := TrimStringFromSauce(read_line)
+		var b bytes.Buffer
+		for {
+			// add delay between each line to throttle speed
+			fmt.Fprintf(os.Stdout, escapes.CursorPos(0, rowCount))
+			b.Write([]byte(trimmed + "\r"))
+			b.WriteTo(os.Stdout)
+			rowCount++
+			break
+		}
+	}
+
+	for {
+		char, key, err := keyboard.GetKey()
+		if err != nil {
+			panic(err)
+		}
+		if string(char) == "y" || string(char) == "Y" || key == 9999 {
+			os.Exit(0)
+		} else {
+			// log.Printf("You pressed: rune %q, key %X\r\n", char, key)
+			side = 1
+			currentDirName := indexOf(dirs, currentDir)
+			filesSlice, err := createFilesSlice(root, currentDirName)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			fmt.Fprintf(os.Stdout, "\033[2J") //clear screen
+			themeArt("header", theme)         // draw header
+
+			showFiles(filesSlice)
+			showDirs(dirs)
+			// showWidth(filesSlice)
+
+			bottom := "\033[" + fmt.Sprint(h) + ";0H"
+			fmt.Fprintf(os.Stdout, bottom)
+			themeArt("footer", theme)
+			side = 1
+			break
+		}
+
+	}
+}
+
+func init() {
+	visibleFileIdx = 0
+	currentFile = 0
+	visibleDirIdx = 0
+	currentDir = 0
+	side = 0
+	headerH = 4
+	canQuit = false
+	dirs = nil
 }
 
 func main() {
@@ -458,10 +572,7 @@ func main() {
 	fmt.Fprintf(os.Stdout, "\033[0;0f") // set cursor to 0,0 position
 
 	// get and print list of top-level dirs under root
-	dirs, err := createDirSlice(root)
-	if err != nil {
-		log.Fatal(err)
-	}
+	dirs = createDirSlice(root)
 
 	themeArt("header", theme)
 	showDirs(dirs)
@@ -470,7 +581,7 @@ func main() {
 	fmt.Fprintf(os.Stdout, bottom)
 	themeArt("footer", theme)
 
-	side = 0       // focus starts on file dirs
+	side = 0       // focus starts on file dirs. 0 = dirs, 1 = files, 2 = ansi, 3 = quit confirm
 	canQuit = true // only trigger Exit from side 1 or 2
 
 	if err := keyboard.Open(); err != nil {
@@ -485,31 +596,14 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		if string(char) == "q" {
-			fmt.Println("q")
 
-		}
-		if string(char) == "r" {
-			fmt.Println("q")
+		if side == 0 {
 
-		}
-		// fmt.Printf("You pressed: rune %q, key %X\r\n", char, key)
-		if key == keyboard.KeyEsc {
-			break
-		}
-		if key == keyboard.KeyArrowLeft {
-			if side == 1 {
-				side = 0
-				fmt.Fprintf(os.Stdout, "\033[2J")
-				themeArt("header", theme)
-				showDirs(dirs)
-				bottom := "\033[" + fmt.Sprint(h) + ";0H"
-				fmt.Fprintf(os.Stdout, bottom)
-				themeArt("footer", theme)
+			if key == keyboard.KeyEsc || string(char) == "q" || string(char) == "Q" {
+				side = 2
 			}
-		}
-		if key == keyboard.KeyArrowRight {
-			if side == 0 {
+
+			if key == keyboard.KeyArrowRight { //right arrow
 				side = 1
 				currentFile = 0
 				visibleFileIdx = 0
@@ -519,8 +613,8 @@ func main() {
 					log.Fatal(err)
 				}
 
-				fmt.Fprintf(os.Stdout, "\033[2J") //clear screen
-				themeArt("header", theme)         // draw header
+				fmt.Fprintf(os.Stdout, "\033[2J")
+				themeArt("header", theme)
 
 				showFiles(filesSlice)
 				showDirs(dirs)
@@ -530,30 +624,69 @@ func main() {
 				fmt.Fprintf(os.Stdout, bottom)
 				themeArt("footer", theme)
 			}
-		}
-		if key == keyboard.KeyArrowUp {
-			if side == 0 {
+
+			if key == keyboard.KeyArrowDown { //down arrow
+				if visibleDirIdx <= dirCount-1 && currentDir <= dirCount-2 {
+					currentDir++
+					if currentDir > visibleDirIdx+(h-(headerH+3)) {
+						visibleDirIdx++
+					}
+					showDirs(dirs)
+					bottom := "\033[" + fmt.Sprint(h) + ";0H"
+					fmt.Fprintf(os.Stdout, bottom)
+					themeArt("footer", theme)
+				}
+
+			}
+
+			if key == keyboard.KeyArrowUp { // up arrow
 				if visibleDirIdx >= 0 && currentDir > 0 && currentDir <= dirCount {
 					currentDir--
 					if currentDir < visibleDirIdx {
 						visibleDirIdx--
 					}
 
-					fmt.Fprintf(os.Stdout, "\033[2J")
-					themeArt("header", theme)
-					// showWidth(dirs)
-
-					currentDirName := root + "/" + indexOf(dirs, currentDir)
-
-					createDirSlice(currentDirName)
 					showDirs(dirs)
 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
 					fmt.Fprintf(os.Stdout, bottom)
 					themeArt("footer", theme)
 				}
 			}
+		}
 
-			if side == 1 {
+		if side == 1 {
+
+			if key == keyboard.KeyEnter {
+
+				side = 3
+
+			}
+
+			if key == keyboard.KeyArrowDown { //down arrow
+				currentDirName := indexOf(dirs, currentDir)
+				filesSlice, err := createFilesSlice(root, currentDirName)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if visibleFileIdx <= fileCount-1 && currentFile <= fileCount-2 {
+					currentFile++
+					if currentFile > visibleFileIdx+(h-(headerH+3)) {
+						visibleFileIdx++
+					}
+					fmt.Fprintf(os.Stdout, "\033[2J")
+					themeArt("header", theme)
+
+					// showWidth(filesSlice)
+					showFiles(filesSlice)
+					showDirs(dirs)
+
+					bottom := "\033[" + fmt.Sprint(h) + ";0H"
+					fmt.Fprintf(os.Stdout, bottom)
+					themeArt("footer", theme)
+				}
+			}
+
+			if key == keyboard.KeyArrowUp {
 				if visibleFileIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
 					currentFile--
 					if currentFile < visibleFileIdx {
@@ -579,205 +712,38 @@ func main() {
 					themeArt("footer", theme)
 				}
 			}
-		}
 
-		if key == keyboard.KeyArrowDown {
-			if side == 0 {
-				if visibleDirIdx <= dirCount-1 && currentDir <= dirCount-2 {
-					currentDir++
-					if currentDir > visibleDirIdx+(h-(headerH+3)) {
-						visibleDirIdx++
-					}
-					showDirs(dirs)
-					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-					fmt.Fprintf(os.Stdout, bottom)
-					themeArt("footer", theme)
-				}
+			if key == keyboard.KeyArrowLeft {
+				side = 0
+				fmt.Fprintf(os.Stdout, "\033[2J")   // clear the screen again
+				fmt.Fprintf(os.Stdout, "\033[0;0f") // set cursor to 0,0 position
+
+				// get and print list of top-level dirs under root
+				dirs = createDirSlice(root)
+
+				themeArt("header", theme)
+				showDirs(dirs)
+
+				bottom := "\033[" + fmt.Sprint(h) + ";0H"
+				fmt.Fprintf(os.Stdout, bottom)
+				themeArt("footer", theme)
 			}
 
-			if side == 1 {
-				currentDirName := indexOf(dirs, currentDir)
-				filesSlice, err := createFilesSlice(root, currentDirName)
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				if visibleFileIdx <= fileCount-1 && currentFile <= fileCount-2 {
-					currentFile++
-					if currentFile > visibleFileIdx+(h-(headerH+3)) {
-						visibleFileIdx++
-					}
-					fmt.Fprintf(os.Stdout, "\033[2J")
-					themeArt("header", theme)
-
-					// showWidth(filesSlice)
-					showFiles(filesSlice)
-					showDirs(dirs)
-
-					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-					fmt.Fprintf(os.Stdout, bottom)
-					themeArt("footer", theme)
-				}
+			if key == keyboard.KeyEsc || string(char) == "q" || string(char) == "Q" {
+				side = 2
 			}
 		}
+
+		if side == 2 {
+			quitConf()
+		}
+
+		if side == 3 {
+			currentDirName := indexOf(dirs, currentDir)
+			path := root + "/" + currentDirName + "/" + currentFileName
+			ShowArt(path, theme, h, 40)
+
+		}
+		continue
 	}
 }
-
-// handle single key press
-// var ch int
-
-// for ch == 113 { // Quit
-
-// 	if side == 0 && canQuit == true {
-// 		fmt.Fprintf(os.Stdout, "\033[?25h") // re-enable the cursor
-// 		os.Exit(0)
-// 	}
-// 	if side == 1 && canQuit == false {
-// 		fmt.Println("q pressed")
-// 	} else {
-
-// 	}
-// }
-
-// 	for ch != 113 {
-
-// 		ch = keyboard.ReadKey()
-
-// 		if ch == keyboard.KEY_LF { // LEFT ARROW
-// 			if side == 1 {
-// 				side = 0
-// 				fmt.Fprintf(os.Stdout, "\033[2J")
-// 				Theme("header", theme)
-// 				showDirs(dirs)
-// 				bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 				fmt.Fprintf(os.Stdout, bottom)
-// 				Theme("footer", theme)
-// 			} else {
-
-// 			}
-// 		}
-
-// 		if ch == keyboard.KEY_RT || ch == 10 { // RIGHT ARROW
-// 			if side == 0 {
-// 				side = 1
-// 				currentFile = 0
-// 				visibleFileIdx = 0
-// 				currentDirName := indexOf(dirs, currentDir)
-// 				filesSlice, err := createFilesSlice(root, currentDirName)
-// 				if err != nil {
-// 					log.Fatal(err)
-// 				}
-
-// 				fmt.Fprintf(os.Stdout, "\033[2J") //clear screen
-// 				Theme("header", theme)            // draw header
-
-// 				showFiles(filesSlice)
-// 				showDirs(dirs)
-// 				showWidth(filesSlice)
-
-// 				bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 				fmt.Fprintf(os.Stdout, bottom)
-// 				Theme("footer", theme)
-// 			}
-// 		}
-
-// 		if ch == 10 { // Return
-// 			if side == 1 {
-// 				currentDirName := indexOf(dirs, currentDir)
-// 				file := root + "/" + currentDirName + "/" + currentFileName
-// 				ShowArt(file, w, h, 70)
-// 			}
-// 			if side == 0 {
-// 				fmt.Println("enter pressed")
-
-// 			}
-// 		}
-
-// 		if ch == keyboard.KEY_UP { // SCROLL UP
-// 			if side == 0 {
-// 				if visibleDirIdx >= 0 && currentDir > 0 && currentDir <= dirCount {
-// 					currentDir--
-// 					if currentDir < visibleDirIdx {
-// 						visibleDirIdx--
-// 					}
-
-// 					fmt.Fprintf(os.Stdout, "\033[2J")
-// 					Theme("header", theme)
-
-// 					showDirs(dirs)
-
-// 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 					fmt.Fprintf(os.Stdout, bottom)
-// 					Theme("footer", theme)
-// 				}
-// 			}
-
-// 			if side == 1 {
-// 				if visibleFileIdx >= 0 && currentFile > 0 && currentFile <= fileCount {
-// 					currentFile--
-// 					if currentFile < visibleFileIdx {
-// 						visibleFileIdx--
-// 					}
-
-// 					currentDirName := indexOf(dirs, currentDir)
-
-// 					filesSlice, err := createFilesSlice(root, currentDirName)
-// 					if err != nil {
-// 						log.Fatal(err)
-// 					}
-// 					fmt.Fprintf(os.Stdout, "\033[2J")
-// 					Theme("header", theme)
-
-// 					showWidth(filesSlice)
-// 					showFiles(filesSlice)
-// 					showDirs(dirs)
-
-// 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 					fmt.Fprintf(os.Stdout, bottom)
-// 					Theme("footer", theme)
-// 				}
-// 			}
-// 		}
-
-// 		if ch == keyboard.KEY_DN { //SCROLL DOWN
-// 			if side == 0 {
-// 				if visibleDirIdx <= dirCount-1 && currentDir <= dirCount-2 {
-// 					currentDir++
-// 					if currentDir > visibleDirIdx+(h-(headerH+3)) {
-// 						visibleDirIdx++
-// 					}
-// 					showDirs(dirs)
-// 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 					fmt.Fprintf(os.Stdout, bottom)
-// 					Theme("footer", theme)
-// 				}
-// 			}
-
-// 			if side == 1 {
-// 				currentDirName := indexOf(dirs, currentDir)
-// 				filesSlice, err := createFilesSlice(root, currentDirName)
-// 				if err != nil {
-// 					log.Fatal(err)
-// 				}
-// 				fileCount = len(filesSlice)
-
-// 				if visibleFileIdx <= fileCount-1 && currentFile <= fileCount-2 {
-// 					currentFile++
-// 					if currentFile > visibleFileIdx+(h-(headerH+3)) {
-// 						visibleFileIdx++
-// 					}
-// 					fmt.Fprintf(os.Stdout, "\033[2J")
-// 					Theme("header", theme)
-
-// 					showWidth(filesSlice)
-// 					showFiles(filesSlice)
-// 					showDirs(dirs)
-
-// 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
-// 					fmt.Fprintf(os.Stdout, bottom)
-// 					Theme("footer", theme)
-
-// 				}
-// 			}
-// 		}
-// 	}
