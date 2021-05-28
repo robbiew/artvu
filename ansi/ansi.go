@@ -1,13 +1,18 @@
 package ansi
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	escapes "github.com/snugfox/ansi-escapes"
 )
 
 func Theme(name string, size int) {
@@ -22,9 +27,7 @@ func Theme(name string, size int) {
 	// Convert []byte to string and print to screen
 	text := string(content)
 	trimmed := TrimStringFromSauce(text)
-	fmt.Fprintf(os.Stdout, "\033[0;0f")
 	fmt.Fprintf(os.Stdout, trimmed)
-	fmt.Fprintf(os.Stdout, "\u001b[0m")
 
 	return
 }
@@ -47,4 +50,41 @@ func TrimStringFromSauce(s string) string {
 		// rightOfDelimiter := strings.Join(strings.Split(string, delimiter)[1:], delimiter)
 	}
 	return s
+}
+
+// showArt draws the art
+func ShowArt(path string, sizeX int, sizeY int, delay int) {
+
+	rowCount := 0
+
+	file, err := os.Open(path)
+	if err != nil {
+		//handle error
+		return
+	}
+
+	defer file.Close()
+	s := bufio.NewScanner(file)
+
+	defer file.Close()
+	fmt.Fprintf(os.Stdout, escapes.EraseScreen)
+	// fmt.Println(escapes.CursorPos(0, 0))
+
+	for s.Scan() {
+		read_line := s.Text()
+		// trim the text if it's after a SAUCE RECORD
+		trimmed := TrimStringFromSauce(read_line)
+		var b bytes.Buffer
+		for {
+			// add delay between each line to throttle speed
+			fmt.Println(escapes.CursorPos(0, rowCount))
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+			// fmt.Fprintf(os.Stdout, escapes.CursorNextLine)
+			b.Write([]byte(trimmed + "\r"))
+			b.WriteTo(os.Stdout)
+			rowCount++
+			break
+		}
+	}
+
 }
