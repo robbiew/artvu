@@ -28,7 +28,7 @@ var (
 	theme   int // 80 or 132
 
 	root    string // main art files dir
-	side    int    // active list -- 0=dirs, 1=files
+	side    int    // active screen/area -- 0=dirs, 1=files, 2=quit, 3=ansi
 	canQuit bool
 
 	splitCol int // col number where the LAST column should begin
@@ -39,6 +39,9 @@ var (
 	dirs      []string // slice of all dirs
 	dirCount  int      // number of files
 	fileCount int      // number of files
+
+	dizLoc0 int // col to write file_id.diz on side=0
+	dizLoc1 int // col to write file_id.diz on side=1
 
 	currentFile     int // index of highllighted file
 	currentDir      int // index of highllighted file
@@ -80,8 +83,14 @@ var (
 type WalkFunc func(path string, info os.FileInfo, err error) error
 
 func themeArt(name string, size int) {
+	var file string
 	s := strconv.Itoa(size)
-	file := "theme/" + name + "." + s + ".ans"
+	if side == 0 {
+		file = "theme/" + name + "." + s + ".ans"
+	}
+	if side == 1 {
+		file = "theme/" + name + "b." + s + ".ans"
+	}
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
 		log.Fatal(err)
@@ -190,7 +199,7 @@ func ShowArt(path string, sizeX int, sizeY int, delay int) {
 
 		showFiles(filesSlice)
 		showDirs(dirs)
-		// showWidth(filesSlice)
+		showWidth(filesSlice, dirs)
 
 		bottom := "\033[" + fmt.Sprint(h) + ";0H"
 		fmt.Fprintf(os.Stdout, bottom)
@@ -223,7 +232,7 @@ func createFilesSlice(root string, dir string) ([]string, error) {
 		if info.IsDir() {
 			return nil
 		}
-		if filepath.Ext(path) == ".ans" && !info.IsDir() {
+		if strings.ToLower(filepath.Ext(path)) == ".ans" && !info.IsDir() {
 			files = append(files, info.Name())
 		}
 		return nil
@@ -324,15 +333,18 @@ func showWidth(files []string, dirs []string) {
 
 func showFiles(files []string) {
 
-	// simulated scroll bar
+	// TODO: simulated scroll bar
 	// arrowHeight := float64(1)
 	// viewportHeight := float64(h - 6)                         // 19
 	// contentHeight := float64(len(files))                     // 100
 	// viewableRatio := float64(viewportHeight / contentHeight) // .19
 	// scrollBarArea := viewportHeight - arrowHeight            // 18
 	// thumbHeight := math.Round(scrollBarArea * viewableRatio) //3.42
-
-	//
+	// if isMultipleOf(thumbHeight, currentFile) == true {
+	// 	scrollBar := "\033[" + fmt.Sprint(currentFile+7) + ";" + fmt.Sprint(80) + "H"
+	// 	fmt.Fprintf(os.Stdout, scrollBar)
+	// 	fmt.Fprintf(os.Stdout, bgCyan+" "+reset)
+	// }
 
 	filesLoc := "\033[" + fmt.Sprint(headerH+1) + ";" + fmt.Sprint(splitCol+1) + "H"
 	fmt.Fprintf(os.Stdout, filesLoc)
@@ -352,16 +364,8 @@ func showFiles(files []string) {
 				fmt.Println(reset + loc + " " + brightBlack + " " + truncateText(v, splitCol-4) + reset)
 				break
 			}
-
 		}
 	}
-
-	// simulated scroll bar
-	// if isMultipleOf(thumbHeight, currentFile) == true {
-	// 	scrollBar := "\033[" + fmt.Sprint(currentFile+7) + ";" + fmt.Sprint(80) + "H"
-	// 	fmt.Fprintf(os.Stdout, scrollBar)
-	// 	fmt.Fprintf(os.Stdout, bgCyan+" "+reset)
-	// }
 	scrollArrows(1)
 }
 
@@ -371,19 +375,16 @@ func showDirs(dirList []string) {
 	fmt.Fprintf(os.Stdout, dirsLoc)
 
 	for i, v := range dirList {
-
 		for i >= visibleDirIdx && i < visibleDirIdx+(h-(headerH+1)) {
-
 			if i == currentDir {
-
 				// active dir
 				up := "\033[1A" // move cursor up
-				fmt.Println(" " + bgCyan + "  " + PadLeft(">", " ", splitCol-10) + reset)
+				fmt.Println(" " + bgCyan + "  " + PadLeft(">", " ", splitCol-9) + reset)
 				fmt.Println(up + " " + reset + "  " + bgCyan + brightWhite + " " + truncateText(v, splitCol-11) + " " + reset)
 				break
 			} else {
 				up := "\033[1A" // move cursor up
-				fmt.Println(" " + cyan + "  " + PadLeft(">", " ", splitCol-8) + reset)
+				fmt.Println(" " + cyan + "  " + PadLeft(">", " ", splitCol-9) + reset)
 				fmt.Println(up + " " + reset + "  " + cyan + " " + truncateText(v, splitCol-11) + reset)
 				break
 			}
@@ -423,16 +424,44 @@ func truncateText(s string, max int) string {
 	return s
 }
 
-func showDiz(root string, dir string) {
+func hasExts(path string, exts []string) bool {
+	pathExt := strings.ToLower(filepath.Ext(path))
+	for _, ext := range exts {
+		if pathExt == strings.ToLower(ext) {
+			return true
+		}
+	}
+	return false
+}
 
-	file := root + "/" + dir + "/file_id.diz"
-	content, err := ioutil.ReadFile(file)
+func showDiz(root string, dirName string, xloc int) {
+
+	var diz string
+	var sourceExts []string
+
+	file := root + "/" + dirName
+
+	dir := file
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	sourceExts = []string{".diz", ".DIZ", "Diz"}
+	for _, fi := range files {
+		if hasExts(fi.Name(), sourceExts) {
+			diz = fi.Name()
+			// fmt.Println(fi.Name())
+		}
+	}
+
+	content, err := ioutil.ReadFile(root + "/" + dirName + "/" + diz)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	rowCount := headerH + 1
+	rowCount := headerH
 
 	s := bufio.NewScanner(strings.NewReader(string(content)))
 
@@ -441,7 +470,7 @@ func showDiz(root string, dir string) {
 		read_line := s.Text()
 		// trim the text if it's after a SAUCE RECORD
 		trimmed := TrimStringFromSauce(read_line)
-		loc := "\033[" + fmt.Sprint(rowCount) + ";" + fmt.Sprint(37) + "f"
+		loc := "\033[" + fmt.Sprint(rowCount) + ";" + fmt.Sprint(xloc) + "f"
 		var b bytes.Buffer
 		for rowCount < h-2 {
 			b.Write([]byte(loc + trimmed + "\r"))
@@ -501,7 +530,7 @@ func quitConf() {
 		if err != nil {
 			panic(err)
 		}
-		if string(char) == "y" || string(char) == "Y" || key == 9999 {
+		if string(char) == "y" || string(char) == "Y" || key == keyboard.KeyEnter {
 			os.Exit(0)
 		} else {
 			// log.Printf("You pressed: rune %q, key %X\r\n", char, key)
@@ -559,14 +588,35 @@ func main() {
 	if w < 132 {
 		theme = 80
 		splitCol = 40
+		dizLoc0 = splitCol - 4
 	}
-	if w >= 132 {
+	if w == 132 {
 		theme = 132
 		splitCol = 40
+		dizLoc0 = splitCol + 10
+		dizLoc1 = 83
 	} else {
 		theme = 80
 		splitCol = 40
+		dizLoc0 = splitCol - 4
 	}
+
+	currentDir = 0
+
+	// Loading screen. Please do no remove/change credit :)
+
+	fmt.Fprintf(os.Stdout, "\033[2J")   // clear the screen again
+	fmt.Fprintf(os.Stdout, "\033[0;0f") // set cursor to 0,0 position
+
+	loaderPos := "\033[" + fmt.Sprint(h/2-3) + ";0H"
+	fmt.Fprintf(os.Stdout, loaderPos)
+	if theme == 80 {
+		placeArt("theme/load.80.ans")
+	} else {
+		placeArt("theme/load.132.ans")
+	}
+
+	time.Sleep(2 * time.Second)
 
 	fmt.Fprintf(os.Stdout, "\033[2J")   // clear the screen again
 	fmt.Fprintf(os.Stdout, "\033[0;0f") // set cursor to 0,0 position
@@ -574,7 +624,9 @@ func main() {
 	// get and print list of top-level dirs under root
 	dirs = createDirSlice(root)
 
-	themeArt("header", theme)
+	themeArt("fileid", theme)
+	currentDirName := indexOf(dirs, currentDir)
+	showDiz(root, currentDirName, dizLoc0)
 	showDirs(dirs)
 
 	bottom := "\033[" + fmt.Sprint(h) + ";0H"
@@ -603,7 +655,7 @@ func main() {
 				side = 2
 			}
 
-			if key == keyboard.KeyArrowRight { //right arrow
+			if key == keyboard.KeyArrowRight { // right arrow or return
 				side = 1
 				currentFile = 0
 				visibleFileIdx = 0
@@ -614,11 +666,14 @@ func main() {
 				}
 
 				fmt.Fprintf(os.Stdout, "\033[2J")
+				fmt.Fprintf(os.Stdout, "\033[0;0f")
 				themeArt("header", theme)
-
+				if theme > 80 {
+					showDiz(root, currentDirName, dizLoc1)
+				}
 				showFiles(filesSlice)
+				showWidth(filesSlice, dirs)
 				showDirs(dirs)
-				// showWidth(filesSlice)
 
 				bottom := "\033[" + fmt.Sprint(h) + ";0H"
 				fmt.Fprintf(os.Stdout, bottom)
@@ -631,6 +686,12 @@ func main() {
 					if currentDir > visibleDirIdx+(h-(headerH+3)) {
 						visibleDirIdx++
 					}
+					currentDirName := indexOf(dirs, currentDir)
+
+					fmt.Fprintf(os.Stdout, "\033[2J")
+					fmt.Fprintf(os.Stdout, "\033[0;0f")
+					themeArt("fileid", theme)
+					showDiz(root, currentDirName, dizLoc0)
 					showDirs(dirs)
 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
 					fmt.Fprintf(os.Stdout, bottom)
@@ -645,6 +706,11 @@ func main() {
 					if currentDir < visibleDirIdx {
 						visibleDirIdx--
 					}
+					currentDirName := indexOf(dirs, currentDir)
+					fmt.Fprintf(os.Stdout, "\033[2J")
+					fmt.Fprintf(os.Stdout, "\033[0;0f")
+					themeArt("fileid", theme)
+					showDiz(root, currentDirName, dizLoc0)
 
 					showDirs(dirs)
 					bottom := "\033[" + fmt.Sprint(h) + ";0H"
@@ -657,9 +723,7 @@ func main() {
 		if side == 1 {
 
 			if key == keyboard.KeyEnter {
-
 				side = 3
-
 			}
 
 			if key == keyboard.KeyArrowDown { //down arrow
@@ -673,10 +737,17 @@ func main() {
 					if currentFile > visibleFileIdx+(h-(headerH+3)) {
 						visibleFileIdx++
 					}
+
 					fmt.Fprintf(os.Stdout, "\033[2J")
+					fmt.Fprintf(os.Stdout, "\033[0;0f")
 					themeArt("header", theme)
 
-					// showWidth(filesSlice)
+					if theme > 80 {
+						currentDirName := indexOf(dirs, currentDir)
+						showDiz(root, currentDirName, dizLoc1)
+					}
+
+					showWidth(filesSlice, dirs)
 					showFiles(filesSlice)
 					showDirs(dirs)
 
@@ -700,10 +771,20 @@ func main() {
 						log.Fatal(err)
 					}
 
-					fmt.Fprintf(os.Stdout, "\033[2J")
-					themeArt("header", theme)
+					if theme > 80 {
+						fmt.Fprintf(os.Stdout, "\033[2J")
+						fmt.Fprintf(os.Stdout, "\033[0;0f")
+						themeArt("header", theme)
+						currentDirName := indexOf(dirs, currentDir)
+						showDiz(root, currentDirName, dizLoc1)
 
-					// showWidth(filesSlice)
+					} else {
+						fmt.Fprintf(os.Stdout, "\033[2J")
+						fmt.Fprintf(os.Stdout, "\033[0;0f")
+						themeArt("header", theme)
+					}
+
+					showWidth(filesSlice, dirs)
 					showFiles(filesSlice)
 					showDirs(dirs)
 
@@ -721,7 +802,10 @@ func main() {
 				// get and print list of top-level dirs under root
 				dirs = createDirSlice(root)
 
-				themeArt("header", theme)
+				currentDirName := indexOf(dirs, currentDir)
+
+				themeArt("fileid", theme)
+				showDiz(root, currentDirName, dizLoc0)
 				showDirs(dirs)
 
 				bottom := "\033[" + fmt.Sprint(h) + ";0H"
